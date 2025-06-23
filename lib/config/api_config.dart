@@ -1,10 +1,5 @@
 class ApiConfig {
-  // ⚠️ IMPORTANTE: Cambia esta IP por la IP de tu computadora en la red local
-  // Para encontrar tu IP:
-  // Windows: ipconfig en cmd
-  // Linux/Mac: ifconfig en terminal
-  // Ejemplo: static const String baseUrl = 'http://192.168.1.100:3000/api';
-  static const String baseUrl = 'http://192.168.1.100:3000/api';
+  static const String baseUrl = 'http://192.168.18.94:3000/api';
   
   // URLs de endpoints
   static const String loginUrl = '$baseUrl/auth/login';

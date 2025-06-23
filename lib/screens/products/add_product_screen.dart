@@ -58,71 +58,115 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   void _saveProduct() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
+  setState(() {
+    _isLoading = true;
+  });
+
+  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  final productProvider = Provider.of<ProductProvider>(context, listen: false);
+
+  if (authProvider.token == null) {
+    _showErrorSnackBar('Error de autenticación');
     setState(() {
-      _isLoading = true;
+      _isLoading = false;
     });
+    return;
+  }
 
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final productProvider = Provider.of<ProductProvider>(context, listen: false);
-
-    if (authProvider.token == null) {
-      _showErrorSnackBar('Error de autenticación');
+  try {
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
+    
+    // 🔧 CORRECCIÓN: Convertir strings a números correctamente
+    final priceText = _priceController.text.trim();
+    final stockText = _stockController.text.trim();
+    
+    // Validar que no estén vacíos
+    if (priceText.isEmpty || stockText.isEmpty) {
+      _showErrorSnackBar('Precio y stock son requeridos');
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    // Convertir a números con manejo de errores
+    final double price;
+    final int stock;
+    
+    try {
+      price = double.parse(priceText);
+      stock = int.parse(stockText);
+    } catch (e) {
+      _showErrorSnackBar('Precio o stock no son válidos');
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    // Validar rangos
+    if (price <= 0) {
+      _showErrorSnackBar('El precio debe ser mayor a 0');
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    if (stock < 0) {
+      _showErrorSnackBar('El stock no puede ser negativo');
       setState(() {
         _isLoading = false;
       });
       return;
     }
 
-    try {
-      final name = _nameController.text.trim();
-      final description = _descriptionController.text.trim();
-      final price = double.parse(_priceController.text);
-      final stock = int.parse(_stockController.text);
+    late final response;
 
-      late final response;
-
-      if (_isEditMode && _editingProduct != null) {
-        // Actualizar producto existente
-        response = await productProvider.updateProduct(
-          productId: _editingProduct!.id,
-          name: name,
-          description: description,
-          price: price,
-          stock: stock,
-          token: authProvider.token!,
-        );
-      } else {
-        // Crear nuevo producto
-        response = await productProvider.createProduct(
-          name: name,
-          description: description,
-          price: price,
-          stock: stock,
-          token: authProvider.token!,
-        );
-      }
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (mounted) {
-        if (response.success) {
-          _showSuccessSnackBar(response.message);
-          Navigator.of(context).pop();
-        } else {
-          _showErrorSnackBar(response.message);
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorSnackBar('Error al procesar los datos: $e');
+    if (_isEditMode && _editingProduct != null) {
+      // Actualizar producto existente
+      response = await productProvider.updateProduct(
+        productId: _editingProduct!.id,
+        name: name,
+        description: description,
+        price: price,  // Ahora es double
+        stock: stock,  // Ahora es int
+        token: authProvider.token!,
+      );
+    } else {
+      // Crear nuevo producto
+      response = await productProvider.createProduct(
+        name: name,
+        description: description,
+        price: price,  // Ahora es double
+        stock: stock,  // Ahora es int
+        token: authProvider.token!,
+      );
     }
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (mounted) {
+      if (response.success) {
+        _showSuccessSnackBar(response.message);
+        Navigator.of(context).pop();
+      } else {
+        _showErrorSnackBar(response.message);
+      }
+    }
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+    });
+    print('🔍 Error detallado: $e');
+    _showErrorSnackBar('Error al procesar los datos: $e');
   }
+}
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
