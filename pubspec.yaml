@@ -1,0 +1,42 @@
+name: products_app
+description: A Flutter application for managing products with red theme
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # HTTP requests
+  http: ^1.1.0
+  # State management
+  provider: ^6.1.1
+  # Local storage
+  shared_preferences: ^2.2.2
+  # Icons
+  cupertino_icons: ^1.0.2
+  # UI components
+  flutter_spinkit: ^5.2.0
+  # Input formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Solo descomenta las siguientes líneas si tienes los archivos
+  # assets:
+  #   - assets/images/
+
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: fonts/Roboto-Regular.ttf
+  #       - asset: fonts/Roboto-Bold.ttf
+  #         weight: 700
