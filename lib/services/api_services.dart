@@ -1,311 +1,305 @@
+// services/api_service.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
-import '../models/api_response.dart';
-import '../models/user.dart';
-import '../models/product.dart';
 
 class ApiService {
-  // Singleton pattern
-  static final ApiService _instance = ApiService._internal();
-  factory ApiService() => _instance;
-  ApiService._internal();
-
-  // Cliente HTTP con configuración personalizada
-  late http.Client _client;
-
-  ApiServices() {
-    _client = http.Client();
-  }
-
-  // Método para hacer peticiones GET
-  Future<ApiResponse<T>> get<T>(
-    String endpoint,
-    String? token, {
-    T Function(dynamic)? fromJson,
-  }) async {
-    try {
-      final headers = token != null 
-          ? ApiConfig.authHeaders(token)
-          : ApiConfig.defaultHeaders;
-
-      final response = await _client
-          .get(
-            Uri.parse(endpoint),
-            headers: headers,
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      return ApiResponse<T>.error(
-        message: 'Sin conexión a internet. Verifica tu red.',
-        statusCode: 0,
-      );
-    } on HttpException {
-      return ApiResponse<T>.error(
-        message: 'Error de servidor. Intenta más tarde.',
-        statusCode: 500,
-      );
-    } catch (e) {
-      return ApiResponse<T>.error(
-        message: 'Error inesperado: ${e.toString()}',
-        statusCode: 0,
-      );
+  // Tu IP local configurada
+  static const String baseUrl = 'http://192.168.18.94:3000/api';
+  
+  // Método para probar múltiples URLs de conexión
+  static Future<String?> findWorkingUrl() async {
+    final urls = [
+      'http://192.168.18.94:3000/api',
+      'http://localhost:3000/api',
+      'http://127.0.0.1:3000/api',
+      'http://10.0.2.2:3000/api', // Para emulador Android
+    ];
+    
+    for (String url in urls) {
+      try {
+        print('🔍 Probando: $url/health');
+        final response = await http.get(
+          Uri.parse('$url/health'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 5));
+        
+        if (response.statusCode == 200) {
+          print('✅ Conexión exitosa en: $url');
+          return url;
+        }
+      } catch (e) {
+        print('❌ Falló: $url - Error: $e');
+        continue;
+      }
     }
+    return null;
   }
-
-  // Método para hacer peticiones POST
-  Future<ApiResponse<T>> post<T>(
-    String endpoint,
-    Map<String, dynamic> data,
-    String? token, {
-    T Function(dynamic)? fromJson,
-  }) async {
+  
+  // Método para verificar conectividad
+  static Future<bool> checkInternetConnection() async {
     try {
-      final headers = token != null 
-          ? ApiConfig.authHeaders(token)
-          : ApiConfig.defaultHeaders;
-
-      final response = await _client
-          .post(
-            Uri.parse(endpoint),
-            headers: headers,
-            body: json.encode(data),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      return ApiResponse<T>.error(
-        message: 'Sin conexión a internet. Verifica tu red.',
-        statusCode: 0,
-      );
-    } on HttpException {
-      return ApiResponse<T>.error(
-        message: 'Error de servidor. Intenta más tarde.',
-        statusCode: 500,
-      );
+      final result = await InternetAddress.lookup('google.com');
+      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+        print('✅ Internet conectado');
+        return true;
+      }
     } catch (e) {
-      return ApiResponse<T>.error(
-        message: 'Error inesperado: ${e.toString()}',
-        statusCode: 0,
-      );
+      print('❌ Sin internet: $e');
     }
+    return false;
   }
-
-  // Método para hacer peticiones PUT
-  Future<ApiResponse<T>> put<T>(
-    String endpoint,
-    Map<String, dynamic> data,
-    String token, {
-    T Function(dynamic)? fromJson,
-  }) async {
-    try {
-      final response = await _client
-          .put(
-            Uri.parse(endpoint),
-            headers: ApiConfig.authHeaders(token),
-            body: json.encode(data),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      return ApiResponse<T>.error(
-        message: 'Sin conexión a internet. Verifica tu red.',
-        statusCode: 0,
-      );
-    } catch (e) {
-      return ApiResponse<T>.error(
-        message: 'Error inesperado: ${e.toString()}',
-        statusCode: 0,
-      );
-    }
-  }
-
-  // Método para hacer peticiones DELETE
-  Future<ApiResponse<T>> delete<T>(
-    String endpoint,
-    String token, {
-    T Function(dynamic)? fromJson,
-  }) async {
-    try {
-      final response = await _client
-          .delete(
-            Uri.parse(endpoint),
-            headers: ApiConfig.authHeaders(token),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      return ApiResponse<T>.error(
-        message: 'Sin conexión a internet. Verifica tu red.',
-        statusCode: 0,
-      );
-    } catch (e) {
-      return ApiResponse<T>.error(
-        message: 'Error inesperado: ${e.toString()}',
-        statusCode: 0,
-      );
-    }
-  }
-
-  // Manejar respuestas HTTP
-  ApiResponse<T> _handleResponse<T>(
-    http.Response response,
-    T Function(dynamic)? fromJson,
-  ) {
-    final statusCode = response.statusCode;
+  
+  // Método de diagnóstico completo
+  static Future<Map<String, dynamic>> diagnosticConnection() async {
+    print('🔍 === DIAGNÓSTICO DE CONEXIÓN ===');
+    
+    // 1. Verificar internet
+    final hasInternet = await checkInternetConnection();
+    
+    // 2. Buscar URL que funcione
+    final workingUrl = await findWorkingUrl();
+    
+    // 3. Probar conexión específica
+    bool canConnect = false;
+    String errorMessage = '';
     
     try {
-      final responseData = json.decode(response.body);
+      final response = await http.get(
+        Uri.parse('$baseUrl/health'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 10));
       
-      if (statusCode >= 200 && statusCode < 300) {
-        // Respuesta exitosa
-        T? data;
-        if (fromJson != null && responseData['data'] != null) {
-          data = fromJson(responseData['data']);
-        } else if (fromJson != null && responseData is List) {
-          data = fromJson(responseData);
-        } else if (fromJson != null && responseData['user'] != null) {
-          data = fromJson(responseData['user']);
-        } else if (fromJson != null && responseData['product'] != null) {
-          data = fromJson(responseData['product']);
-        }
-
-        return ApiResponse<T>.success(
-          message: responseData['message'] ?? 'Operación exitosa',
-          data: data,
-          statusCode: statusCode,
-        );
-      } else {
-        // Error del servidor
-        return ApiResponse<T>.error(
-          message: responseData['message'] ?? 'Error del servidor',
-          error: responseData['error'],
-          statusCode: statusCode,
-        );
+      canConnect = response.statusCode == 200;
+      if (!canConnect) {
+        errorMessage = 'Servidor respondió con código: ${response.statusCode}';
       }
     } catch (e) {
-      return ApiResponse<T>.error(
-        message: 'Error al procesar la respuesta del servidor',
-        statusCode: statusCode,
-      );
+      errorMessage = e.toString();
     }
+    
+    final result = {
+      'hasInternet': hasInternet,
+      'baseUrl': baseUrl,
+      'workingUrl': workingUrl,
+      'canConnect': canConnect,
+      'error': errorMessage,
+    };
+    
+    print('📊 Resultado del diagnóstico: $result');
+    return result;
   }
+  
+  // Headers comunes
+  static Map<String, String> get headers => {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
-  // Métodos específicos para autenticación
-  Future<ApiResponse<User>> login(String email, String password) async {
-    return await post<User>(
-      ApiConfig.loginUrl,
-      {'email': email, 'password': password},
-      null,
-      fromJson: (data) => User.fromJson(data),
-    );
-  }
+  // Headers con token de autenticación
+  static Map<String, String> headersWithAuth(String token) => {
+    ...headers,
+    'Authorization': 'Bearer $token',
+  };
 
-  Future<ApiResponse<User>> register(String username, String email, String password) async {
-    return await post<User>(
-      ApiConfig.registerUrl,
-      {'username': username, 'email': email, 'password': password},
-      null,
-      fromJson: (data) => User.fromJson(data),
-    );
-  }
-
-  // Métodos específicos para productos
-  Future<ApiResponse<List<Product>>> getProducts() async {
-    final response = await get<List<Product>>(
-      ApiConfig.productsUrl,
-      null,
-    );
-
-    if (response.success && response.data == null) {
-      // Si no hay fromJson definido, procesamos manualmente
-      final rawResponse = await _client.get(Uri.parse(ApiConfig.productsUrl));
-      if (rawResponse.statusCode == 200) {
-        final List<dynamic> data = json.decode(rawResponse.body);
-        final products = data.map((json) => Product.fromJson(json)).toList();
-        return ApiResponse<List<Product>>.success(
-          message: 'Productos cargados exitosamente',
-          data: products,
-        );
-      }
-    }
-
-    return response;
-  }
-
-  Future<ApiResponse<Product>> createProduct(
-    String name,
-    String description,
-    double price,
-    int stock,
-    String token,
-  ) async {
-    return await post<Product>(
-      ApiConfig.productsUrl,
-      {
-        'name': name,
-        'description': description,
-        'price': price,
-        'stock': stock,
-      },
-      token,
-      fromJson: (data) => Product.fromJson(data),
-    );
-  }
-
-  Future<ApiResponse<Product>> updateProduct(
-    int productId,
-    String name,
-    String description,
-    double price,
-    int stock,
-    String token,
-  ) async {
-    return await put<Product>(
-      '${ApiConfig.productsUrl}/$productId',
-      {
-        'name': name,
-        'description': description,
-        'price': price,
-        'stock': stock,
-      },
-      token,
-      fromJson: (data) => Product.fromJson(data),
-    );
-  }
-
-  Future<ApiResponse<bool>> deleteProduct(int productId, String token) async {
-    final response = await delete<bool>(
-      '${ApiConfig.productsUrl}/$productId',
-      token,
-    );
-
-    return ApiResponse<bool>.success(
-      message: response.message,
-      data: true,
-    );
-  }
-
-  // Verificar conectividad con el servidor
-  Future<bool> checkConnectivity() async {
+  // ==================== AUTH ENDPOINTS ====================
+  
+  // Login
+  static Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await _client
-          .get(Uri.parse(ApiConfig.healthUrl))
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
+      print('🔐 Intentando login para: $email');
+      print('📡 URL: $baseUrl/auth/login');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: headers,
+        body: json.encode({
+          'email': email,
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Respuesta login: ${response.statusCode}');
+      print('📄 Cuerpo: ${response.body}');
+      
+      return _handleResponse(response);
     } catch (e) {
-      return false;
+      print('❌ Error en login: $e');
+      
+      // Si falla, intentar diagnóstico
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('No address associated with hostname') ||
+          e.toString().contains('Connection refused')) {
+        print('🔍 Ejecutando diagnóstico automático...');
+        await diagnosticConnection();
+      }
+      
+      throw Exception('Error de conexión en login: $e');
     }
   }
 
-  // Limpiar recursos
-  void dispose() {
-    _client.close();
+  // Registro
+  static Future<Map<String, dynamic>> register(String username, String email, String password) async {
+    try {
+      print('📝 Intentando registro para: $email');
+      print('📡 URL: $baseUrl/auth/register');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/register'),
+        headers: headers,
+        body: json.encode({
+          'username': username,
+          'email': email,
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Respuesta registro: ${response.statusCode}');
+      print('📄 Cuerpo: ${response.body}');
+      
+      return _handleResponse(response);
+    } catch (e) {
+      print('❌ Error en registro: $e');
+      
+      // Diagnóstico automático en caso de fallo
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('Connection refused')) {
+        print('🔍 Ejecutando diagnóstico automático...');
+        await diagnosticConnection();
+      }
+      
+      throw Exception('Error de conexión en registro: $e');
+    }
   }
-}
+
+  // ==================== PRODUCTS ENDPOINTS ====================
+  
+  // Obtener todos los productos
+  static Future<List<dynamic>> getProducts([String? token]) async {
+    try {
+      print('📦 Obteniendo productos...');
+      print('📡 URL: $baseUrl/products');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/products'),
+        headers: token != null ? headersWithAuth(token) : headers,
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Respuesta productos: ${response.statusCode}');
+      
+      final data = _handleResponse(response);
+      List<dynamic> products = data is List ? data : [];
+      
+      print('✅ Productos obtenidos: ${products.length}');
+      return products;
+    } catch (e) {
+      print('❌ Error obteniendo productos: $e');
+      throw Exception('Error al obtener productos: $e');
+    }
+  }
+
+  // Crear producto
+  static Future<Map<String, dynamic>> createProduct(Map<String, dynamic> productData, String token) async {
+    try {
+      print('➕ Creando producto: ${productData['name']}');
+      print('📡 URL: $baseUrl/products');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/products'),
+        headers: headersWithAuth(token),
+        body: json.encode(productData),
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Respuesta crear producto: ${response.statusCode}');
+      
+      return _handleResponse(response);
+    } catch (e) {
+      print('❌ Error creando producto: $e');
+      throw Exception('Error al crear producto: $e');
+    }
+  }
+
+  // Actualizar producto
+  static Future<Map<String, dynamic>> updateProduct(int id, Map<String, dynamic> productData, String token) async {
+    try {
+      print('✏️ Actualizando producto ID: $id');
+      print('📡 URL: $baseUrl/products/$id');
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/products/$id'),
+        headers: headersWithAuth(token),
+        body: json.encode(productData),
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Respuesta actualizar producto: ${response.statusCode}');
+      
+      return _handleResponse(response);
+    } catch (e) {
+      print('❌ Error actualizando producto: $e');
+      throw Exception('Error al actualizar producto: $e');
+    }
+  }
+
+  // Eliminar producto
+  static Future<bool> deleteProduct(int id, String token) async {
+    try {
+      print('🗑️ Eliminando producto ID: $id');
+      print('📡 URL: $baseUrl/products/$id');
+      
+      final response = await http.delete(
+        Uri.parse('$baseUrl/products/$id'),
+        headers: headersWithAuth(token),
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Respuesta eliminar producto: ${response.statusCode}');
+      
+      _handleResponse(response);
+      print('✅ Producto eliminado exitosamente');
+      return true;
+    } catch (e) {
+      print('❌ Error eliminando producto: $e');
+      throw Exception('Error al eliminar producto: $e');
+    }
+  }
+
+  // ==================== HELPER METHODS ====================
+  
+  // Manejar respuestas HTTP
+  static dynamic _handleResponse(http.Response response) {
+    final body = response.body;
+    print('📄 Respuesta completa del servidor:');
+    print('   Status: ${response.statusCode}');
+    print('   Headers: ${response.headers}');
+    print('   Body: $body');
+    
+    // Intentar decodificar JSON
+    dynamic data;
+    try {
+      data = json.decode(body);
+    } catch (e) {
+      print('❌ Error decodificando JSON: $e');
+      throw Exception('Respuesta inválida del servidor: $body');
+    }
+
+    // Manejar códigos de estado
+    switch (response.statusCode) {
+      case 200:
+      case 201:
+        return data;
+      case 400:
+        throw Exception(data['message'] ?? 'Solicitud incorrecta');
+      case 401:
+        throw Exception(data['message'] ?? 'No autorizado');
+      case 403:
+        throw Exception(data['message'] ?? 'Acceso prohibido');
+      case 404:
+        throw Exception(data['message'] ?? 'Recurso no encontrado');
+      case 422:
+        throw Exception(data['message'] ?? 'Datos de entrada no válidos');
+      case 500:
+        throw Exception(data['message'] ?? 'Error interno del servidor');
+      default:
+        throw Exception('Error ${response.statusCode}: ${data['message'] ?? 'Error desconocido'}');
+    }
+  }
+} 

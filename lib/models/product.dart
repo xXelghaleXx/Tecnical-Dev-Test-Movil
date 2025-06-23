@@ -5,7 +5,7 @@ class Product {
   final double price;
   final int stock;
   final int userId;
-  final String? username;
+  final String? username; // Del JOIN con users
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,13 +25,13 @@ class Product {
     return Product(
       id: json['id'] as int,
       name: json['name'] as String,
-      description: json['description'] as String,
-      price: double.parse(json['price'].toString()),
+      description: json['description'] as String? ?? '',
+      price: (json['price'] as num).toDouble(),
       stock: json['stock'] as int,
       userId: json['user_id'] as int,
       username: json['username'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at']),
+      updatedAt: DateTime.parse(json['updated_at']),
     );
   }
 
@@ -49,15 +49,41 @@ class Product {
     };
   }
 
-  // Método para calcular el valor total (precio * stock)
-  double get totalValue => price * stock;
+  // Para crear/actualizar producto (sin id, timestamps)
+  Map<String, dynamic> toCreateJson() {
+    return {
+      'name': name,
+      'description': description,
+      'price': price,
+      'stock': stock,
+    };
+  }
 
-  // Método para verificar si está en stock
+  // Método para verificar si el usuario es propietario
+  bool isOwner(int currentUserId) {
+    return userId == currentUserId;
+  }
+
+  // Verificar si hay stock disponible
   bool get isInStock => stock > 0;
 
-  // Método para verificar si es del usuario actual
-  bool isOwner(int currentUserId) => userId == currentUserId;
+  // Verificar si el stock está bajo
+  bool get isLowStock => stock > 0 && stock <= 5;
 
+  // Verificar si no hay stock
+  bool get isOutOfStock => stock <= 0;
+
+  // Obtener estado del stock como string
+  String get stockStatus {
+    if (isOutOfStock) return 'Sin stock';
+    if (isLowStock) return 'Stock bajo';
+    return 'Disponible';
+  }
+
+  // Calcular valor total del inventario
+  double get totalValue => price * stock;
+
+  // Copiar con nuevos valores
   Product copyWith({
     int? id,
     String? name,
@@ -81,18 +107,4 @@ class Product {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
-
-  @override
-  String toString() {
-    return 'Product(id: $id, name: $name, price: $price, stock: $stock)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is Product && other.id == id;
-  }
-
-  @override
-  int get hashCode => id.hashCode;
 }
